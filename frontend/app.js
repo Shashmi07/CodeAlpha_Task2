@@ -8,7 +8,6 @@ const displayUsername = document.getElementById('displayUsername');
 let token = localStorage.getItem('token');
 let user = null;
 
-// Show or hide UI based on auth
 function updateUI() {
   if (token && user) {
     authDiv.style.display = 'none';
@@ -21,7 +20,7 @@ function updateUI() {
   }
 }
 
-// Register user
+// Register
 document.getElementById('registerBtn').addEventListener('click', async () => {
   const username = document.getElementById('username').value.trim();
   const email = document.getElementById('email').value.trim();
@@ -53,7 +52,7 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   }
 });
 
-// Login user
+// Login
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
@@ -92,24 +91,32 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
   updateUI();
 });
 
-// Create post
+// Create post with image
 document.getElementById('postForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const content = document.getElementById('postContent').value.trim();
-  if (!content) return;
+  let content = document.getElementById('postContent').value.trim();
+  const image = document.getElementById('postImage').files[0];
+
+  // If both are empty, block submission
+  if (!content && !image) return alert('Please write something or upload an image');
+
+  // If only image, set content to empty string (or a single space if backend requires non-empty)
+  if (!content) content = ' ';
+
+  const formData = new FormData();
+  formData.append('content', content);
+  if (image) formData.append('image', image);
 
   try {
     const res = await fetch(`${API_URL}/posts`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-auth-token': token,
-      },
-      body: JSON.stringify({ content }),
+      headers: { 'x-auth-token': token },
+      body: formData,
     });
 
     if (res.ok) {
       document.getElementById('postContent').value = '';
+      document.getElementById('postImage').value = '';
       fetchPosts();
     }
   } catch (err) {
@@ -117,7 +124,8 @@ document.getElementById('postForm').addEventListener('submit', async (e) => {
   }
 });
 
-// Fetch posts
+
+// Fetch and render posts
 async function fetchPosts() {
   try {
     const res = await fetch(`${API_URL}/posts`);
@@ -127,28 +135,27 @@ async function fetchPosts() {
     postsDiv.innerHTML = '';
 
     posts.forEach(post => {
-      const postEl = document.createElement('div');
+  const postEl = document.createElement('div');
 
-      let likedByUser = post.likes.includes(user.id);
+  postEl.innerHTML = `
+    <b>${post.user.username}</b> <small>${new Date(post.createdAt).toLocaleString()}</small>
+    <p>${post.content}</p>
+    ${post.imageUrl ? `<img src="http://localhost:5000/${post.imageUrl}" class="post-image" />` : ''}
+    <button onclick="likePost('${post._id}')">Like (${post.likes.length})</button>
+    <div>
+      <h4>Comments (${post.comments.length})</h4>
+      <div id="comments-${post._id}">
+        ${post.comments.map(c => `<p><b>${c.user.username}:</b> ${c.content}</p>`).join('')}
+      </div>
+      <input type="text" id="commentInput-${post._id}" placeholder="Add comment" />
+      <button onclick="addComment('${post._id}')">Comment</button>
+    </div>
+  `;
+  postsDiv.appendChild(postEl);
+});
 
-      postEl.innerHTML = `
-        <b>${post.user.username}</b> <small>${new Date(post.createdAt).toLocaleString()}</small>
-        <p>${post.content}</p>
-        <button onclick="likePost('${post._id}')">Like (${post.likes.length})</button>
 
-        <div>
-          <h4>Comments (${post.comments.length})</h4>
-          <div id="comments-${post._id}">
-            ${post.comments.map(c => `<p><b>${c.user.username}:</b> ${c.content}</p>`).join('')}
-          </div>
-
-          <input type="text" id="commentInput-${post._id}" placeholder="Add comment" />
-          <button onclick="addComment('${post._id}')">Comment</button>
-        </div>
-      `;
-
-      postsDiv.appendChild(postEl);
-    });
+    
   } catch (err) {
     console.log(err);
   }
@@ -188,3 +195,6 @@ window.addComment = async function(postId) {
     alert('Error adding comment');
   }
 };
+
+// Start app
+updateUI();
